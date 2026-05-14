@@ -581,4 +581,3 @@ win = UI:Window({ Title = "title" })          -- окно
 ]]
 
 --hi hiiv\ bebe
--- pliz spid i ned this
