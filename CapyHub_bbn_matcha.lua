@@ -579,3 +579,5 @@ win = UI:Window({ Title = "title" })          -- окно
         \___sec:Keybind({ Title = "текст", Key = Enum.KeyCode.F }, function() end, function(newKey) end)
                                                                    -- 1й колбэк = нажата, 2й = сменена
 ]]
+
+--sssss
