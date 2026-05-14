@@ -73,7 +73,45 @@ sec:Checkbox({ Title = "Auto avoid traps" }, function(state)
         -- ничего не делаем
       end
   end)
+-- Add this to your Rage section (after the trap checkbox)
+-- Works exactly like trap avoid but uses minion's Y + 14 studs for height
 
+local avoiding_minion = false
+sec:Checkbox({ Title = "Auto avoid Minion (BUGGY + MIGHT BE DETECTED)" }, function(state)
+    avoiding_minion = state
+    if state then
+        task.spawn(function()
+            local player = game.Players.LocalPlayer
+            while avoiding_minion do
+                local ignore = workspace:FindFirstChild("IGNORE")
+                local char = player.Character
+                local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                if ignore and hrp then
+                    -- Find all minions inside IGNORE folder
+                    local minions = {}
+                    for _, obj in pairs(ignore:GetChildren()) do
+                        if obj.Name == "Minion" then
+                            local minionHrp = obj:FindFirstChild("HumanoidRootPart")
+                            if minionHrp then
+                                table.insert(minions, minionHrp)
+                            end
+                        end
+                    end
+                    for _, minionHrp in ipairs(minions) do
+                        local dist = (hrp.Position - minionHrp.Position).Magnitude
+                        if dist < 17 then
+                            local forward = hrp.CFrame.LookVector
+                            
+                            hrp.CFrame = CFrame.new(hrp.Position.X, minionHrp.Position.Y + 10, hrp.Position.Z)
+                            hrp.AssemblyLinearVelocity = Vector3.new(forward.X * 30, 5, forward.Z * 30)
+                        end
+                    end
+                end
+                task.wait()
+            end
+        end)
+    end
+end)
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 --  ESP CORE HELPERS
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
@@ -524,6 +562,7 @@ espSection:Checkbox({ Title = "Trap ESP" }, function(state)
       end
   end)
 
+
 --[[
 Капибарский От себя - Для себя
 
@@ -538,5 +577,7 @@ win = UI:Window({ Title = "title" })          -- окно
         \___sec:Slider({ Title = "текст", Min = 0, Max = 100, Step = 1, Default = 50, Suffix = "px" }, function(n) end)
         \___sec:MultiDropdown({ Title = "текст", Options = {"A","B","C"}, Default = {"A"} }, function(selected) end) -- selected это таблица
         \___sec:Keybind({ Title = "текст", Key = Enum.KeyCode.F }, function() end, function(newKey) end)
-                                                                   -- 1й калбэк = нажата, 2й = сменена
+                                                                   -- 1й колбэк = нажата, 2й = сменена
 ]]
+
+--hi hiiv\ bebe
