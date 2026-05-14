@@ -580,5 +580,5 @@ win = UI:Window({ Title = "title" })          -- окно
                                                                    -- 1й колбэк = нажата, 2й = сменена
 ]]
 
---hi hiiv\ bebe
+
 -- pliz spid i ned this
