@@ -580,4 +580,4 @@ win = UI:Window({ Title = "title" })          -- окно
                                                                    -- 1й колбэк = нажата, 2й = сменена
 ]]
 
---sssss iuai
+--sssss iuai iiiaa
