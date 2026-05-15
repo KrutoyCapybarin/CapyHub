@@ -128,14 +128,23 @@ local function newText(color, size)
     return d
   end
 
-local function getBoxScreen(hrp, head)
+  local function getBoxScreen(hrp, head)
+    if not hrp or not head then
+      return nil
+    end
+    
     local tp, tv = WorldToScreen(hrp.Position)
     local hp, hv = WorldToScreen(head.Position)
-    if not tv or not hv then return nil end
+    
+    if not tv or not hv then
+      return nil
+    end
+    
     local height = math.abs(hp.Y - tp.Y) * 2
     local width = height * 0.55
+    
     return tp, hp, height, width
-  end
+end
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 --  ESP TAB
@@ -357,7 +366,10 @@ local function refreshGenerators()
   end
 
 local function drawGenerators()
-    if not generatorActive then return end
+    if not generatorActive then
+      return
+    end
+    
     for key, data in pairs(generatorsData) do
         if not data.hrp or not data.hrp.Parent then
             data.dot:Remove()
@@ -365,12 +377,14 @@ local function drawGenerators()
             generatorsData[key] = nil
           else
             local progress = data.generator:GetAttribute("Progress") or 0
+            
             if progress >= 100 then
                 data.dot.Visible = false
                 data.dist.Visible = false
               else
                 local sp, vis = WorldToScreen(data.hrp.Position)
-                if not vis then
+                
+                if not sp or not vis then
                     data.dot.Visible = false
                     data.dist.Visible = false
                   else
@@ -388,7 +402,7 @@ local function drawGenerators()
               end
           end
       end
-  end
+end
 
 espSection:Checkbox({ Title = "Generator ESP" }, function(state)
     generatorActive = state
@@ -581,4 +595,3 @@ win = UI:Window({ Title = "title" })          -- окно
 ]]
 
 
--- pliz spid i ned this
