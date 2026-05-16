@@ -43,7 +43,7 @@ local function getDistance(pos)
 local avoiding_traps = false
 
 sec:Label({ Title = "Auto avoid traps makes the part above traps, not letting you get in trouble" })
-sec:Label({ Title = 'ALERT: YOU CAN GET BAN IF SOMEONE FIND YOU USING "Auto Avoid Traps"' })
+sec:Label({ Title = 'ALERT: "Auto Avoid Traps / Minions" is not safe. Slam, non zero chance.' })
 sec:Checkbox({ Title = "Auto avoid traps" }, function(state)
     avoiding_traps = state
     if state then
@@ -77,41 +77,215 @@ sec:Checkbox({ Title = "Auto avoid traps" }, function(state)
 -- Works exactly like trap avoid but uses minion's Y + 14 studs for height
 
 local avoiding_minion = false
+local minionCache = {}
+local lastCheck = 0
+
 sec:Checkbox({ Title = "Auto avoid Minion (BUGGY + MIGHT BE DETECTED)" }, function(state)
     avoiding_minion = state
+    
     if state then
         task.spawn(function()
-            local player = game.Players.LocalPlayer
             while avoiding_minion do
-                local ignore = workspace:FindFirstChild("IGNORE")
-                local char = player.Character
-                local hrp = char and char:FindFirstChild("HumanoidRootPart")
-                if ignore and hrp then
-                    -- Find all minions inside IGNORE folder
-                    local minions = {}
-                    for _, obj in pairs(ignore:GetChildren()) do
-                        if obj.Name == "Minion" then
-                            local minionHrp = obj:FindFirstChild("HumanoidRootPart")
-                            if minionHrp then
-                                table.insert(minions, minionHrp)
-                            end
-                        end
+                local now = os.clock()
+                
+                if now - lastCheck >= 0.3 then
+                    lastCheck = now
+                    minionCache = {}
+                    
+                    local ignore = workspace:FindFirstChild("IGNORE")
+                    if ignore then
+                      for _, obj in pairs(ignore:GetChildren()) do
+                          if obj.Name == "Minion" and obj:FindFirstChild("HumanoidRootPart") then
+                              table.insert(minionCache, obj.HumanoidRootPart)
+                          end
+                      end
                     end
-                    for _, minionHrp in ipairs(minions) do
-                        local dist = (hrp.Position - minionHrp.Position).Magnitude
-                        if dist < 17 then
+                end
+                
+                local char = game.Players.LocalPlayer.Character
+                local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                
+                if hrp and #minionCache > 0 then
+                    for _, minionHrp in ipairs(minionCache) do
+                        if minionHrp and minionHrp.Parent and (hrp.Position - minionHrp.Position).Magnitude < 17 then
                             local forward = hrp.CFrame.LookVector
-                            
                             hrp.CFrame = CFrame.new(hrp.Position.X, minionHrp.Position.Y + 10, hrp.Position.Z)
                             hrp.AssemblyLinearVelocity = Vector3.new(forward.X * 30, 5, forward.Z * 30)
                         end
                     end
                 end
-                task.wait()
+                
+                task.wait(0.05)
             end
         end)
     end
 end)
+
+-- ═══════════════════════════════════════════════════════════════════════════════════════════════
+--  AUTO TAB
+-- ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+local autoTab = win:Tab({ Title = "Auto" })
+local autoBarricadeSection = autoTab:Section({ Title = "Auto Barricade", Collapsed = true })
+
+local INTERACT_KEY = 0x45
+local INTERACT_HOLD = 0.06
+local INTERACT_COOLDOWN = 0.65
+local MAX_DOOR_DISTANCE = 12
+local ACTIVE_LOOP_DELAY = 0.016
+local IDLE_LOOP_DELAY = 0.1
+local MOVE_GAIN = 0.55
+local MOVE_CAP = 22
+local DEADZONE = 0.75
+
+local autoBarricadeActive = false
+local lastInteract = 0
+local inMinigame = false
+
+local function roundNumber(v)
+    return v >= 0 and math.floor(v + 0.5) or math.ceil(v - 0.5)
+end
+
+local function tapKey(key)
+    keypress(key)
+    task.wait(INTERACT_HOLD)
+    keyrelease(key)
+end
+
+local function getClosestDoor()
+    local root = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart")
+    local maps = workspace:FindFirstChild("MAPS")
+    local gameMap = maps and maps:FindFirstChild("GAME MAP")
+    local doors = gameMap and gameMap:FindFirstChild("Doors")
+    
+    if not (root and doors) then
+      return nil
+    end
+
+    local closest, bestDist = nil, math.huge
+    
+    for _, door in pairs(doors:GetChildren()) do
+        local doorRoot = door:FindFirstChild("Root")
+        
+        if doorRoot then
+            local isBarricaded = door:GetAttribute("HOLD") == true
+            local isBusy = pcall(function() return door:HasTag("Barricading") end) and door:HasTag("Barricading")
+            
+            if not isBarricaded and not isBusy then
+                local dist = (doorRoot.Position - root.Position).Magnitude
+                
+                if dist <= MAX_DOOR_DISTANCE and dist < bestDist then
+                    closest, bestDist = door, dist
+                end
+            end
+        end
+    end
+    
+    return closest
+end
+
+local function findMinigame()
+    local pg = localPlayer:FindFirstChild("PlayerGui")
+    
+    if not pg then
+      return nil
+    end
+    
+    local barricadeGui = pg:FindFirstChild("Barricade")
+    
+    if barricadeGui then
+        local container = barricadeGui:FindFirstChild("Container")
+        
+        if container and container:FindFirstChild("Frame") and container:FindFirstChild("Box") then
+            if barricadeGui:GetAttribute("HP") ~= nil and barricadeGui:GetAttribute("Active") ~= nil then
+                return {
+                    Root = barricadeGui,
+                    Container = container,
+                    Frame = container.Frame,
+                    Box = container.Box
+                }
+            end
+        end
+    end
+    
+    return nil
+end
+
+local function moveToCenter(minigame)
+    if minigame.Root:GetAttribute("Active") == false then
+      return false
+    end
+    
+    local boxCenter = minigame.Box.AbsolutePosition + minigame.Box.AbsoluteSize / 2
+    local framePos = minigame.Frame.AbsolutePosition
+    local deltaX = boxCenter.X - framePos.X
+    local deltaY = boxCenter.Y - framePos.Y
+
+    local function step(delta)
+        if math.abs(delta) <= DEADZONE then
+          return 0
+        end
+        
+        local s = roundNumber(delta * 1.2)
+        
+        if s == 0 then
+          s = delta > 0 and 2 or -2
+        end
+        
+        return math.clamp(s, -50, 50)
+    end
+
+    local sx, sy = step(deltaX), step(deltaY)
+    
+    if sx ~= 0 or sy ~= 0 then
+      mousemoverel(sx, sy)
+    end
+    
+    return true
+end
+
+autoBarricadeSection:Checkbox({ Title = "Auto Barricade" }, function(state)
+    autoBarricadeActive = state
+    
+    if state then
+        task.spawn(function()
+            while autoBarricadeActive do
+                if isrbxactive() then
+                    local mg = findMinigame()
+                    
+                    if mg and mg.Root:GetAttribute("Active") ~= false then
+                        inMinigame = true
+                        moveToCenter(mg)
+                      else
+                        if inMinigame then
+                          inMinigame = false
+                        end
+                        
+                        if tick() - lastInteract >= INTERACT_COOLDOWN then
+                            local door = getClosestDoor()
+                            
+                            if door then
+                                lastInteract = tick()
+                                tapKey(INTERACT_KEY)
+                            end
+                        end
+                    end
+                end
+                
+                task.wait(inMinigame and ACTIVE_LOOP_DELAY or IDLE_LOOP_DELAY)
+            end
+        end)
+    end
+end)
+
+
+
+
+
+
+
+
+
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 --  ESP CORE HELPERS
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
@@ -334,6 +508,7 @@ espSection:Checkbox({ Title = "Player ESP" }, function(state)
 
 local generatorActive = false
 local generatorsData = {}
+local generatorIndex = 0
 
 local function cleanupGenerators()
     for _, data in pairs(generatorsData) do
@@ -341,34 +516,72 @@ local function cleanupGenerators()
         data.dist:Remove()
       end
     generatorsData = {}
+    generatorIndex = 0
   end
 
 local function refreshGenerators()
     if not generatorActive then return end
     cleanupGenerators()
+    
     local gensFolder = workspace:FindFirstChild("MAPS")
         and workspace.MAPS:FindFirstChild("GAME MAP")
         and workspace.MAPS["GAME MAP"]:FindFirstChild("Tasks")
         and workspace.MAPS["GAME MAP"].Tasks:FindFirstChild("Generators")
+    
     if not gensFolder then return end
+    
     for _, gen in pairs(gensFolder:GetChildren()) do
         local hrp = gen:FindFirstChild("HumanoidRootPart")
+        
         if hrp then
-            local key = tostring(hrp)
-            generatorsData[key] = {
+            generatorIndex = generatorIndex + 1
+            generatorsData[generatorIndex] = {
                 dot = newText(Color3.fromRGB(255, 200, 0), 14),
                 dist = newText(Color3.fromRGB(220, 220, 220), 13),
                 hrp = hrp,
-                generator = gen
+                generator = gen,
+                index = generatorIndex
               }
-          end
-      end
-  end
+        end
+    end
+end
 
 local function drawGenerators()
-    if not generatorActive then
-      return
-    end
+    if not generatorActive then return end
+    
+    for idx, data in pairs(generatorsData) do
+        if not data.hrp or not data.hrp.Parent then
+            data.dot:Remove()
+            data.dist:Remove()
+            generatorsData[idx] = nil
+          else
+            local progress = data.generator:GetAttribute("Progress") or 0
+            
+            if progress >= 100 then
+                data.dot.Visible = false
+                data.dist.Visible = false
+              else
+                local sp, vis = WorldToScreen(data.hrp.Position)
+                
+                if not sp or not vis then
+                    data.dot.Visible = false
+                    data.dist.Visible = false
+                  else
+                    local color = progress >= 75 and Color3.fromRGB(255, 80, 80)
+                                 or progress >= 50 and Color3.fromRGB(255, 180, 0)
+                                 or Color3.fromRGB(100, 255, 100)
+                    data.dot.Text = "Generator [" .. progress .. "%]"
+                    data.dot.Color = color
+                    data.dot.Position = Vector2.new(sp.X, sp.Y - 16)
+                    data.dot.Visible = true
+                    data.dist.Text = "[" .. getDistance(data.hrp) .. "m]"
+                    data.dist.Position = Vector2.new(sp.X, sp.Y)
+                    data.dist.Visible = true
+                  end
+              end
+          end
+      end
+end
     
     for key, data in pairs(generatorsData) do
         if not data.hrp or not data.hrp.Parent then
@@ -402,18 +615,32 @@ local function drawGenerators()
               end
           end
       end
-end
+
 
 espSection:Checkbox({ Title = "Generator ESP" }, function(state)
     generatorActive = state
+    
     if state then
-        refreshGenerators()
-        withPeriodicRefresh(1.5, drawGenerators, cleanupGenerators, refreshGenerators)
+        task.spawn(function()
+            local lastRefresh = 0
+            
+            while generatorActive do
+                local now = os.clock()
+                
+                if now - lastRefresh >= 0.5 then
+                    lastRefresh = now
+                    refreshGenerators()
+                end
+                
+                drawGenerators()
+                task.wait(0.05)
+            end
+        end)
       else
         generatorActive = false
         cleanupGenerators()
       end
-  end)
+end)
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 --  4. DOOR ESP
@@ -576,6 +803,20 @@ espSection:Checkbox({ Title = "Trap ESP" }, function(state)
       end
   end)
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
 
 --[[
 Капибарский От себя - Для себя
