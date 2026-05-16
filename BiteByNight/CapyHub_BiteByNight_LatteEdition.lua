@@ -135,7 +135,7 @@ local MAX_DOOR_DISTANCE = 12
 local ACTIVE_LOOP_DELAY = 0.016
 local IDLE_LOOP_DELAY = 0.1
 local MOVE_GAIN = 0.55
-local MOVE_CAP = 22
+local MOVE_CAP = 100
 local DEADZONE = 0.75
 
 local autoBarricadeActive = false
@@ -191,15 +191,15 @@ local function findMinigame()
       return nil
     end
     
-    local barricadeGui = pg:FindFirstChild("Barricade")
+    local dotGui = pg:FindFirstChild("Dot")
     
-    if barricadeGui then
-        local container = barricadeGui:FindFirstChild("Container")
+    if dotGui then
+        local container = dotGui:FindFirstChild("Container")
         
         if container and container:FindFirstChild("Frame") and container:FindFirstChild("Box") then
-            if barricadeGui:GetAttribute("HP") ~= nil and barricadeGui:GetAttribute("Active") ~= nil then
+            if dotGui:GetAttribute("HP") ~= nil and dotGui:GetAttribute("Active") ~= nil then
                 return {
-                    Root = barricadeGui,
+                    Root = dotGui,
                     Container = container,
                     Frame = container.Frame,
                     Box = container.Box
@@ -222,17 +222,17 @@ local function moveToCenter(minigame)
     local deltaY = boxCenter.Y - framePos.Y
 
     local function step(delta)
-        if math.abs(delta) <= DEADZONE then
+        if math.abs(delta) <= 0.3 then
           return 0
         end
         
-        local s = roundNumber(delta * 1.2)
+        local s = roundNumber(delta * 0.8)
         
         if s == 0 then
-          s = delta > 0 and 2 or -2
+          s = delta > 0 and 1 or -1
         end
         
-        return math.clamp(s, -50, 50)
+        return math.clamp(s, -40, 40)
     end
 
     local sx, sy = step(deltaX), step(deltaY)
