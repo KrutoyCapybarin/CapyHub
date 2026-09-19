@@ -2,6 +2,7 @@
 
 gamelist = {
     BiteByNight = 70845479499574,
+    LzheBiteByNight = 1,
     PoopEatingSimulator = 69696969
 }
 
