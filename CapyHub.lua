@@ -5,11 +5,14 @@ print(ok and t or "os.date() is not available", "CapyHub: HttpGet succeeded. Loo
 
 local datamodel = game
 
-if external_mode == nil or external_mode == false and getexecutorname() == "Matcha" or getexecutorname() == "CapyWare" then
-    external_mode = true
-end
-if external_mode == nil or external_mode == false and identifyexecutor() == "Matcha" or identifyexecutor() == "CapyWare" then
-    external_mode = true
+local executor = (type(identifyexecutor) == "function" and identifyexecutor())
+    or (type(getexecutorname) == "function" and getexecutorname())
+    or "Unknown"
+
+if external_mode == nil or external_mode == false then
+    if executor == "Matcha" or executor == "CapyWare" then
+        external_mode = true
+    end
 end
 
 --[[ it is time to SHITCODE!!! 
