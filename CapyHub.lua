@@ -9,6 +9,7 @@ local executor = (type(identifyexecutor) == "function" and identifyexecutor())
     or (type(getexecutorname) == "function" and getexecutorname())
     or "Unknown"
 
+if executor == "CapyWare" then print("CapyLarp super detected shiiii W krutoycapybarin") end
 if external_mode == nil or external_mode == false then
     if executor == "Matcha" or executor == "CapyWare" then
         external_mode = true
